@@ -2,13 +2,14 @@ package provider
 
 import (
 	"sync"
+	"sync/atomic"
 )
 
 // Balancer picks a healthy channel by weight * health, skipping open circuits.
 type Balancer struct {
 	mu       sync.RWMutex
 	channels []Health
-	cursor   int
+	cursor   int64 // accessed atomically; advanced on every Pick for weighted round-robin
 }
 
 func NewBalancer(chs []Health) *Balancer {
@@ -47,9 +48,9 @@ func (b *Balancer) Pick() (Health, bool) {
 	if total <= 0 {
 		return Health{}, false
 	}
-	// weighted round-robin via cursor
-	b.cursor++
-	target := float64(b.cursor % 1000)
+	// weighted round-robin via cursor; advance atomically so concurrent
+	// Pick calls (all under RLock) don't race on the counter.
+	target := float64(atomic.AddInt64(&b.cursor, 1) % 1000)
 	acc := 0.0
 	for _, c := range b.channels {
 		if c.State == "open" {
