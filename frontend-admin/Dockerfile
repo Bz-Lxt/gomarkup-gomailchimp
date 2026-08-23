@@ -1,0 +1,22 @@
+FROM node:22-alpine AS build
+WORKDIR /app
+RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.aliyun.com/g' /etc/apk/repositories
+ARG VITE_API_BASE=http://localhost:27482
+ARG VITE_TRACK_BASE=http://localhost:27483
+ARG VITE_SSE_BASE=http://localhost:27482
+ENV VITE_API_BASE=$VITE_API_BASE
+ENV VITE_TRACK_BASE=$VITE_TRACK_BASE
+ENV VITE_SSE_BASE=$VITE_SSE_BASE
+COPY package.json ./
+RUN npm install --registry=https://registry.npmmirror.com
+COPY . .
+RUN npm run build
+
+FROM nginx:1.27-alpine
+RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.aliyun.com/g' /etc/apk/repositories \
+    && apk add --no-cache wget
+ENV TZ=Asia/Shanghai
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+COPY --from=build /app/dist /usr/share/nginx/html
+EXPOSE 80
+HEALTHCHECK --interval=15s --timeout=3s CMD wget -qO- http://127.0.0.1/ || exit 1
