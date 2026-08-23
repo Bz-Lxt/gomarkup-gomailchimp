@@ -1,6 +1,7 @@
 package pipeline
 
 import (
+	"errors"
 	"math"
 	"time"
 
@@ -24,7 +25,7 @@ func ShouldRetry(res provider.Result, err error, attempt int) (bool, time.Durati
 	if res.Transient {
 		return true, backoff(attempt)
 	}
-	if err == domain.ErrTransient && res.Code == "" {
+	if errors.Is(err, domain.ErrTransient) && res.Code == "" {
 		return true, backoff(attempt)
 	}
 	return false, 0
