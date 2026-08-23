@@ -29,9 +29,24 @@ type MockFeeder struct {
 
 func (m *MockFeeder) Name() string { return "mock" }
 
+// Poll drains the feeder queue, returning an independent snapshot of the
+// current batch.
+//
+// The returned slice MUST NOT alias the feeder's internal storage: a consumer
+// may hold the previous batch in-flight (not yet persisted) while the feeder
+// keeps receiving the next notification. Returning m.Queue directly and then
+// resetting it via m.Queue[:0] reuses the same backing array, so a subsequent
+// InjectSES append overwrites the still-in-flight previous batch in place.
+// Copy the events out and detach the queue so the two batches can never share
+// storage.
 func (m *MockFeeder) Poll(context.Context) ([]domain.BounceEvent, error) {
-	out := m.Queue
-	m.Queue = m.Queue[:0]
+	if len(m.Queue) == 0 {
+		m.Queue = nil
+		return nil, nil
+	}
+	out := make([]domain.BounceEvent, len(m.Queue))
+	copy(out, m.Queue)
+	m.Queue = nil
 	return out, nil
 }
 
