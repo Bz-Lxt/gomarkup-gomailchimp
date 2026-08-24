@@ -1,0 +1,15 @@
+DROP TABLE IF EXISTS audit_logs;
+DROP TABLE IF EXISTS import_jobs;
+DROP TABLE IF EXISTS bounce_records;
+DROP TABLE IF EXISTS suppressions;
+DROP TABLE IF EXISTS email_events;
+DROP TABLE IF EXISTS send_channels;
+DROP TABLE IF EXISTS campaign_recipients;
+DROP TABLE IF EXISTS campaigns;
+DROP TABLE IF EXISTS template_versions;
+DROP TABLE IF EXISTS templates;
+DROP TABLE IF EXISTS list_memberships;
+DROP TABLE IF EXISTS contact_lists;
+DROP TABLE IF EXISTS contacts;
+DROP TABLE IF EXISTS users;
+DROP TABLE IF EXISTS tenants;
