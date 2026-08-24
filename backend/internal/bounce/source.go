@@ -111,7 +111,7 @@ func (w *WebhookSource) Poll(context.Context) ([]domain.BounceEvent, error) {
 }
 
 func Select(name string, mock *MockFeeder, imap IMAPSource, hook *WebhookSource) Source {
-	var smtp *SMTPSessionSource
+	smtp := SMTPSessionSource{}
 	sources := map[string]Source{
 		"smtp":    smtp,
 		"mock":    mock,
@@ -120,7 +120,7 @@ func Select(name string, mock *MockFeeder, imap IMAPSource, hook *WebhookSource)
 	}
 	source, ok := sources[name]
 	if !ok || source == nil {
-		return SMTPSessionSource{}
+		return smtp
 	}
 	return source
 }
