@@ -51,7 +51,11 @@ func New(d Deps) *gin.Engine {
 
 	r.GET("/healthz", func(c *gin.Context) { c.JSON(200, gin.H{"ok": true, "role": "api", "ts": clock.Format(clock.Now())}) })
 	r.GET("/readyz", func(c *gin.Context) {
-		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		// Derive the timeout from the request context so that when the probe
+		// client gives up and disconnects, in-flight dependency checks are
+		// cancelled immediately instead of hanging until the server-side
+		// timeout. The 2 s deadline still acts as a server-side backstop.
+		ctx, cancel := context.WithTimeout(c.Request.Context(), 2*time.Second)
 		defer cancel()
 		if err := repo.Ping(ctx, d.DB); err != nil {
 			c.JSON(503, gin.H{"ok": false, "db": err.Error()})
