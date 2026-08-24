@@ -1,0 +1,37 @@
+# secrets
+.env
+.env.local
+*.pem
+*.key
+credentials.json
+
+# build
+dist/
+node_modules/
+backend/bin/
+backend/tmp/
+*.exe
+*.test
+coverage.out
+coverage.html
+
+# ide / os
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# test cache
+.pytest_cache/
+playwright-report/
+test-results/
+.playwright/
+
+# docker
+*.log
+/docs/
+/.alkaid-sop
+/CLAUDE.md
+/AGENTS.md
+/.cursorrules
+/.github/
