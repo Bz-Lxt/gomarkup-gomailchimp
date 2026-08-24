@@ -148,7 +148,6 @@ func readTable(peek []byte, r io.Reader) ([][]string, error) {
 		return nil, err
 	}
 	rows := [][]string{header}
-	cr.ReuseRecord = true
 	for {
 		row, err := cr.Read()
 		if err == io.EOF {
@@ -157,7 +156,7 @@ func readTable(peek []byte, r io.Reader) ([][]string, error) {
 		if err != nil {
 			return nil, err
 		}
-		rows = append(rows, row)
+		rows = append(rows, append([]string(nil), row...))
 	}
 }
 
