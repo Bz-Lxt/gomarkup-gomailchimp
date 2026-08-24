@@ -85,7 +85,15 @@ func Engine(ast domain.TemplateAST, ctx Context) (Result, error) {
 	doc = strings.Replace(doc, html.EscapeString(unsubURL), unsubURL, 1)
 
 	plain := stripTags(rendered) + "\n退订: " + unsubURL
-	return Result{HTML: doc, Text: plain, Warnings: warn}, nil
+
+	// Return an independent snapshot of the warnings. The warn slice (and its
+	// backing array) came from warningBuffers and is returned to the pool by the
+	// deferred Put above. If we handed the caller the pooled slice directly, a
+	// subsequent Engine call reusing the same backing array would overwrite this
+	// result's warnings. Copying now guarantees each Result is self-contained.
+	warnings := make([]string, len(warn))
+	copy(warnings, warn)
+	return Result{HTML: doc, Text: plain, Warnings: warnings}, nil
 }
 
 func renderBlock(b domain.TemplateBlock) (string, []string) {
