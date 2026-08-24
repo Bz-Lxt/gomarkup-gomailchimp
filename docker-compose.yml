@@ -1,0 +1,194 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      TZ: Asia/Shanghai
+      POSTGRES_USER: lumen
+      POSTGRES_PASSWORD: lumen_dev_pw
+      POSTGRES_DB: lumen
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lumen -d lumen"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks: [lumen]
+
+  redis:
+    image: redis:7.4-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    environment:
+      TZ: Asia/Shanghai
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks: [lumen]
+
+  mailpit:
+    image: axllent/mailpit:v1.21.4
+    environment:
+      TZ: Asia/Shanghai
+      MP_SMTP_AUTH_ACCEPT_ANY: "1"
+      MP_SMTP_AUTH_ALLOW_INSECURE: "1"
+    ports:
+      - "27484:8025"
+    # official image is scratch — no wget; connectivity checked by api /readyz
+    networks: [lumen]
+
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    environment:
+      TZ: Asia/Shanghai
+      APP_ROLE: api
+      APP_ENV: dev
+      LOG_LEVEL: info
+      HTTP_ADDR: :8080
+      DATABASE_URL: postgres://lumen:lumen_dev_pw@postgres:5432/lumen?sslmode=disable
+      REDIS_ADDR: redis:6379
+      JWT_SECRET: lumen-relay-dev-secret-change-me
+      TRACK_HMAC_SECRET: lumen-track-hmac-dev-change-me
+      PUBLIC_TRACK_BASE: http://localhost:27483
+      PUBLIC_UNSUB_BASE: http://localhost:27485
+      MAIL_PROVIDER: smtp
+      SMTP_HOST: mailpit
+      SMTP_PORT: "1025"
+      BOUNCE_SOURCE: smtp
+      CORS_ORIGINS: http://localhost:27481,http://localhost:27485
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      mailpit:
+        condition: service_started
+    ports:
+      - "27482:8080"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/healthz"]
+      interval: 10s
+      timeout: 3s
+      retries: 8
+    networks: [lumen]
+
+  sender:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    environment:
+      TZ: Asia/Shanghai
+      APP_ROLE: sender
+      APP_ENV: dev
+      LOG_LEVEL: info
+      DATABASE_URL: postgres://lumen:lumen_dev_pw@postgres:5432/lumen?sslmode=disable
+      REDIS_ADDR: redis:6379
+      TRACK_HMAC_SECRET: lumen-track-hmac-dev-change-me
+      PUBLIC_TRACK_BASE: http://localhost:27483
+      PUBLIC_UNSUB_BASE: http://localhost:27485
+      MAIL_PROVIDER: smtp
+      SMTP_HOST: mailpit
+      SMTP_PORT: "1025"
+      BOUNCE_SOURCE: smtp
+      SENDER_WORKERS: "64"
+      RATE_GMAIL_PER_MIN: "120"
+      RATE_OUTLOOK_PER_MIN: "180"
+      RATE_OTHER_PER_MIN: "300"
+      RATE_CHANNEL_PER_MIN: "600"
+      RATE_TENANT_PER_MIN: "1000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      api:
+        condition: service_healthy
+    networks: [lumen]
+
+  tracker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    environment:
+      TZ: Asia/Shanghai
+      APP_ROLE: tracker
+      APP_ENV: dev
+      LOG_LEVEL: info
+      HTTP_ADDR: :8081
+      DATABASE_URL: postgres://lumen:lumen_dev_pw@postgres:5432/lumen?sslmode=disable
+      REDIS_ADDR: redis:6379
+      TRACK_HMAC_SECRET: lumen-track-hmac-dev-change-me
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "27483:8081"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8081/healthz"]
+      interval: 10s
+      timeout: 3s
+      retries: 8
+    networks: [lumen]
+
+  frontend-admin:
+    build:
+      context: ./frontend-admin
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE: http://localhost:27482
+        VITE_TRACK_BASE: http://localhost:27483
+        VITE_SSE_BASE: http://localhost:27482
+    environment:
+      TZ: Asia/Shanghai
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "27481:80"
+    networks: [lumen]
+
+  qa:
+    image: python:3.12-alpine
+    environment:
+      TZ: Asia/Shanghai
+      API_BASE: http://api:8080
+      PYTHONIOENCODING: utf-8
+    volumes:
+      - ./tests:/tests
+    working_dir: /tests
+    entrypoint: ["python", "/tests/api_smoke.py"]
+    depends_on:
+      api:
+        condition: service_healthy
+    networks: [lumen]
+    profiles: ["qa"]
+
+  frontend-user:
+    build:
+      context: ./frontend-user
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE: http://localhost:27482
+    environment:
+      TZ: Asia/Shanghai
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "27485:80"
+    networks: [lumen]
+
+volumes:
+  pgdata:
+  redisdata:
+
+networks:
+  lumen:
+    driver: bridge
