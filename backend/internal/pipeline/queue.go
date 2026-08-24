@@ -109,14 +109,18 @@ func (q *Queue) Depth(ctx context.Context) (send, delay, dlq int64, err error) {
 	return
 }
 
+// ClaimIdem atomically acquires the send-right for a Message-ID.
+//
+// We must use SET key value NX EX <ttl> (a single round trip) so that two
+// workers racing on the same Message-ID can never both win. The previous
+// Exists + Set sequence was a classic check-then-act race: both workers
+// observed exists==0 and both proceeded to Set, causing duplicate sends
+// under parallel workers / retries.
 func (q *Queue) ClaimIdem(ctx context.Context, messageID string, ttl time.Duration) (bool, error) {
 	key := QIdem + messageID
-	exists, err := q.rdb.Exists(ctx, key).Result()
-	if err != nil || exists != 0 {
+	ok, err := q.rdb.SetNX(ctx, key, "1", ttl).Result()
+	if err != nil {
 		return false, err
 	}
-	if err := q.rdb.Set(ctx, key, "1", ttl).Err(); err != nil {
-		return false, err
-	}
-	return true, nil
+	return ok, nil
 }
